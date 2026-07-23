@@ -1,35 +1,26 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from database import (
+    initialize_database,
+    get_all_tasks,
+    get_task,
+    create_task,
+    update_task,
+    delete_task
+)
 
 app = FastAPI(
     title="Task API",
     description="A simple CRUD Task API built with FastAPI",
-    version="1.0"
+    version="2.0"
 )
 
-
-# In-memory database
-tasks = [
-    {
-        "id": 1,
-        "title": "Learn FastAPI",
-        "done": False
-    },
-    {
-        "id": 2,
-        "title": "Build CRUD API",
-        "done": False
-    },
-    {
-        "id": 3,
-        "title": "Deploy Project",
-        "done": True
-    }
-]
+# Create database/table on startup
+initialize_database()
 
 
-# Request models
+# Request Models
 class TaskCreate(BaseModel):
     title: str
 
@@ -39,12 +30,12 @@ class TaskUpdate(BaseModel):
     done: bool | None = None
 
 
-# Stage 1
+# Root
 @app.get("/")
 def root():
     return {
         "name": "Task API",
-        "version": "1.0",
+        "version": "2.0",
         "endpoints": [
             "/tasks"
         ]
@@ -58,30 +49,32 @@ def health():
     }
 
 
-# Stage 2
+# GET all tasks
 @app.get("/tasks")
 def get_tasks():
-    return tasks
+    return get_all_tasks()
 
 
+# GET one task
 @app.get("/tasks/{task_id}")
-def get_task(task_id: int):
+def get_single_task(task_id: int):
 
-    for task in tasks:
-        if task["id"] == task_id:
-            return task
+    task = get_task(task_id)
 
-    raise HTTPException(
-        status_code=404,
-        detail={
-            "error": f"Task {task_id} not found"
-        }
-    )
+    if task is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Task not found"
+            }
+        )
+
+    return task
 
 
-# Stage 3
+# CREATE
 @app.post("/tasks", status_code=201)
-def create_task(task: TaskCreate):
+def add_task(task: TaskCreate):
 
     if not task.title.strip():
         raise HTTPException(
@@ -91,68 +84,51 @@ def create_task(task: TaskCreate):
             }
         )
 
-    new_task = {
-        "id": len(tasks) + 1,
-        "title": task.title,
-        "done": False
-    }
-
-    tasks.append(new_task)
-
-    return new_task
+    return create_task(task.title)
 
 
-# Stage 4
+# UPDATE
 @app.put("/tasks/{task_id}")
-def update_task(task_id: int, update: TaskUpdate):
+def edit_task(task_id: int, update: TaskUpdate):
 
-    for task in tasks:
+    if update.title is not None and not update.title.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Title cannot be empty"
+            }
+        )
 
-        if task["id"] == task_id:
-
-            if update.title is not None:
-
-                if not update.title.strip():
-                    raise HTTPException(
-                        status_code=400,
-                        detail={
-                            "error": "Title cannot be empty"
-                        }
-                    )
-
-                task["title"] = update.title
-
-
-            if update.done is not None:
-                task["done"] = update.done
-
-
-            return task
-
-
-    raise HTTPException(
-        status_code=404,
-        detail={
-            "error": f"Task {task_id} not found"
-        }
+    task = update_task(
+        task_id,
+        update.title,
+        update.done
     )
 
+    if task is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Task not found"
+            }
+        )
 
+    return task
+
+
+# DELETE
 @app.delete("/tasks/{task_id}", status_code=204)
-def delete_task(task_id: int):
+def remove_task(task_id: int):
 
-    for task in tasks:
+    success = delete_task(task_id)
 
-        if task["id"] == task_id:
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "Task not found"
+            }
+        )
 
-            tasks.remove(task)
-
-            return
-
-
-    raise HTTPException(
-        status_code=404,
-        detail={
-            "error": f"Task {task_id} not found"
-        }
-    )
+    return
+        
