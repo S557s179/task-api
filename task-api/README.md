@@ -74,7 +74,7 @@ SELECT * FROM tasks;
 
 ## Screenshot
 
-Add a screenshot of your SQLite database here (for example, from DB Browser for SQLite).
+## Database Screenshot
 
 ```
 Below is a screenshot of the SQLite database used by this project.
