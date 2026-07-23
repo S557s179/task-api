@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from database import (
-    initialize_database,
+from database import get_db, engine, Base
+from repository import (
     get_all_tasks,
     get_task,
     create_task,
@@ -10,19 +11,24 @@ from database import (
     delete_task
 )
 
+
 app = FastAPI(
     title="Task API",
-    description="A simple CRUD Task API built with FastAPI",
-    version="2.0"
+    description="A CRUD Task API using PostgreSQL",
+    version="3.0"
 )
 
-# Create database/table on startup
-initialize_database()
+
+# Create tables
+Base.metadata.create_all(bind=engine)
+
 
 
 # Request Models
+
 class TaskCreate(BaseModel):
     title: str
+
 
 
 class TaskUpdate(BaseModel):
@@ -30,38 +36,55 @@ class TaskUpdate(BaseModel):
     done: bool | None = None
 
 
+
 # Root
+
 @app.get("/")
 def root():
+
     return {
         "name": "Task API",
-        "version": "2.0",
-        "endpoints": [
-            "/tasks"
-        ]
+        "version": "3.0",
+        "database": "PostgreSQL"
     }
+
 
 
 @app.get("/health")
 def health():
+
     return {
         "status": "ok"
     }
 
 
-# GET all tasks
+
+# GET ALL TASKS
+
 @app.get("/tasks")
-def get_tasks():
-    return get_all_tasks()
+def read_tasks(
+    db: Session = Depends(get_db)
+):
+
+    return get_all_tasks(db)
 
 
-# GET one task
+
+# GET ONE TASK
+
 @app.get("/tasks/{task_id}")
-def get_single_task(task_id: int):
+def read_task(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
 
-    task = get_task(task_id)
+    task = get_task(
+        db,
+        task_id
+    )
 
     if task is None:
+
         raise HTTPException(
             status_code=404,
             detail={
@@ -72,11 +95,17 @@ def get_single_task(task_id: int):
     return task
 
 
-# CREATE
+
+# CREATE TASK
+
 @app.post("/tasks", status_code=201)
-def add_task(task: TaskCreate):
+def add_task(
+    task: TaskCreate,
+    db: Session = Depends(get_db)
+):
 
     if not task.title.strip():
+
         raise HTTPException(
             status_code=400,
             detail={
@@ -84,45 +113,74 @@ def add_task(task: TaskCreate):
             }
         )
 
-    return create_task(task.title)
+
+    return create_task(
+        db,
+        task.title
+    )
 
 
-# UPDATE
+
+# UPDATE TASK
+
 @app.put("/tasks/{task_id}")
-def edit_task(task_id: int, update: TaskUpdate):
+def edit_task(
+    task_id: int,
+    update: TaskUpdate,
+    db: Session = Depends(get_db)
+):
 
-    if update.title is not None and not update.title.strip():
+    if (
+        update.title is not None
+        and not update.title.strip()
+    ):
+
         raise HTTPException(
             status_code=400,
             detail={
                 "error": "Title cannot be empty"
             }
         )
+
 
     task = update_task(
+        db,
         task_id,
         update.title,
         update.done
     )
 
+
     if task is None:
+
         raise HTTPException(
             status_code=404,
             detail={
                 "error": "Task not found"
             }
         )
+
 
     return task
 
 
-# DELETE
-@app.delete("/tasks/{task_id}", status_code=204)
-def remove_task(task_id: int):
 
-    success = delete_task(task_id)
+# DELETE TASK
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def remove_task(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
+
+    success = delete_task(
+        db,
+        task_id
+    )
+
 
     if not success:
+
         raise HTTPException(
             status_code=404,
             detail={
@@ -130,5 +188,8 @@ def remove_task(task_id: int):
             }
         )
 
+
     return
+
+
         
