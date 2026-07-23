@@ -1,0 +1,41 @@
+services:
+
+  db:
+    image: postgres:16
+    container_name: task-postgres
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tasks
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+
+
+  app:
+    build: .
+
+    container_name: task-api
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      - db
+
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/tasks
+
+    volumes:
+      - .:/app
+
+
+volumes:
+
+  postgres_data:
